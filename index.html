@@ -976,6 +976,7 @@ const UI = (() => {
     note.updated_at = now();
     await DB.notes.put(note);
     state.isDirty = false;
+    Sync.scheduleAutoPush();
     $('#save-indicator').textContent = '已保存';
     if (state.viewMode === 'edit') {
       $('#save-indicator').textContent = '已保存 ' + new Date().toLocaleTimeString();
@@ -1386,7 +1387,8 @@ const Sync = (() => {
       if (savedNoteId && state.notes.find(n => n.id === savedNoteId && !n.deleted_at)) {
         UI.selectNote(savedNoteId);
       }
-      UI.showToast(`同步完成 — ${mergedNotes.length} 条笔记`, 'success');
+      const activeCount = mergedNotes.filter(n => !n.deleted_at).length;
+      UI.showToast(`同步完成 — ${activeCount} 条笔记`, 'success');
     } catch (e) {
       const msg = e.message;
       if (msg.includes('401')) {
@@ -1422,9 +1424,43 @@ const Sync = (() => {
     };
   }
 
+  // Auto-pull on load (silent, no toasts)
+  async function autoPull() {
+    const token = await getToken();
+    if (!token) return;
+    try {
+      const remote = await fetchRemote(token);
+      if (!remote) return;
+      const localNotes = await DB.notes.getAll();
+      const merged = merge(localNotes, remote.notes || []);
+      for (const note of merged) await DB.notes.put(note);
+      const s = UI.state();
+      s.notes = await DB.notes.getAll();
+      UI.renderNoteList();
+    } catch (e) { /* silent - will sync on next manual attempt */ }
+  }
+
+  // Auto-push after save (debounced, silent)
+  let pushTimer = null;
+  function scheduleAutoPush() {
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(async () => {
+      const token = await getToken();
+      if (!token) return;
+      try {
+        const remote = await fetchRemote(token);
+        const localNotes = await DB.notes.getAll();
+        const merged = merge(localNotes, remote?.notes || []);
+        const payload = { version: 1, synced_at: now(), notes: merged };
+        if (remote?._sha) payload._sha = remote._sha;
+        await pushRemote(token, payload);
+      } catch (e) { /* silent */ }
+    }, 5000);
+  }
+
   init();
 
-  return { sync: () => showSyncModal(), showTokenModal: showSyncModal };
+  return { sync: () => showSyncModal(), showTokenModal: showSyncModal, autoPull, scheduleAutoPush };
 })();
 
 // ============================================================================
@@ -1444,6 +1480,7 @@ const App = (() => {
     await UI.initTheme();
     UI.init();
     UI.renderNoteList();
+    Sync.autoPull();
 
     // Hide editor area initially
     document.querySelector('#editor-area').classList.remove('active');
