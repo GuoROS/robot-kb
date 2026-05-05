@@ -692,7 +692,7 @@ const UI = (() => {
 
   // ---- Note List ----
   function renderNoteList() {
-    let filtered = state.notes;
+    let filtered = state.notes.filter(n => !n.deleted_at);
     if (state.selectedTag) {
       filtered = filtered.filter(n => n.tags && n.tags.includes(state.selectedTag));
     }
@@ -721,7 +721,7 @@ const UI = (() => {
 
   function renderTagList() {
     const tagCount = {};
-    state.notes.forEach(n => (n.tags || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }));
+    state.notes.forEach(n => { if (!n.deleted_at) (n.tags || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }); });
     const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
     const container = $('#tag-list');
     container.innerHTML = sorted.map(([tag, count]) =>
@@ -861,8 +861,12 @@ const UI = (() => {
   // ---- Delete Note ----
   async function deleteNote() {
     if (!state.activeNoteId) return;
-    await DB.notes.delete(state.activeNoteId);
-    state.notes = state.notes.filter(n => n.id !== state.activeNoteId);
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (note) {
+      note.deleted_at = now();
+      note.updated_at = now();
+      await DB.notes.put(note);
+    }
     state.activeNoteId = null;
     state.isDirty = false;
     $('#delete-modal-overlay').classList.add('hidden');
@@ -1138,7 +1142,17 @@ const Sync = (() => {
     const map = {};
     for (const item of localItems) map[item.id] = item;
     for (const r of remoteItems) {
-      if (!map[r.id] || new Date(r.updated_at) > new Date(map[r.id].updated_at)) {
+      const existing = map[r.id];
+      if (!existing) { map[r.id] = r; continue; }
+      // If either side is soft-deleted, propagate deletion
+      if (r.deleted_at || existing.deleted_at) {
+        const dA = r.deleted_at ? new Date(r.deleted_at) : new Date(0);
+        const dB = existing.deleted_at ? new Date(existing.deleted_at) : new Date(0);
+        map[r.id] = dA >= dB ? r : existing;
+        continue;
+      }
+      // Otherwise, later updated_at wins
+      if (new Date(r.updated_at) > new Date(existing.updated_at)) {
         map[r.id] = r;
       }
     }
