@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Vault</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text2: #8b949e;
+  --accent: #58a6ff;
+  --accent-dim: #1f6feb33;
+  --danger: #f85149;
+  --green: #3fb950;
+  --radius: 8px;
+  --sidebar-w: 280px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+}
+a { color: var(--accent); }
+
+/* SIDEBAR */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100%;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  transition: transform .2s ease;
+}
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.sidebar-header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 13px; font-family: var(--font); transition: all .15s;
+}
+.btn:hover { background: #1f242c; }
+.btn-primary { background: #238636; border-color: #238636; color: #fff; font-weight: 500; }
+.btn-primary:hover { background: #2ea043; }
+.btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-icon { padding: 6px; background: transparent; border: none; color: var(--text2); cursor: pointer; border-radius: 4px; }
+.btn-icon:hover { color: var(--text); background: #1f242c; }
+
+#search-input {
+  width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 13px; font-family: var(--font);
+  outline: none;
+}
+#search-input:focus { border-color: var(--accent); }
+#search-input::placeholder { color: var(--text2); }
+
+.sidebar-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+.sidebar-section { padding: 8px 16px 4px; }
+.sidebar-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: var(--text2); letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.tag-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 16px 8px; }
+.tag {
+  display: inline-block; padding: 3px 8px; border-radius: 12px;
+  font-size: 12px; cursor: pointer; border: 1px solid var(--border);
+  color: var(--text2); transition: all .12s; white-space: nowrap;
+}
+.tag:hover { color: var(--text); border-color: var(--text2); }
+.tag.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+.note-list-item {
+  padding: 10px 16px; cursor: pointer; border-left: 3px solid transparent;
+  transition: all .1s; display: flex; flex-direction: column; gap: 2px;
+}
+.note-list-item:hover { background: #1c2128; }
+.note-list-item.active { background: #1c2128; border-left-color: var(--accent); }
+.note-list-item .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-list-item .meta { font-size: 11px; color: var(--text2); }
+
+.sidebar-footer {
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  display: flex; gap: 6px; font-size: 12px;
+}
+
+/* MAIN */
+#main {
+  flex: 1; height: 100%; display: flex; flex-direction: column; overflow: hidden;
+}
+.main-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 20px;
+  border-bottom: 1px solid var(--border); min-height: 48px; background: var(--bg);
+}
+.main-toolbar .note-title {
+  font-size: 16px; font-weight: 600; flex: 1; background: transparent;
+  border: none; color: var(--text); outline: none; font-family: var(--font);
+}
+.main-toolbar .note-title:focus { border-bottom: 1px dashed var(--border); }
+.main-toolbar .note-title::placeholder { color: var(--text2); }
+#menu-toggle { display: none; background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; }
+
+.main-content {
+  flex: 1; overflow-y: auto; padding: 24px 32px; max-width: 860px;
+}
+
+/* EDITOR */
+#editor-area { display: none; flex: 1; flex-direction: column; }
+#editor-area.active { display: flex; }
+#editor-textarea {
+  flex: 1; padding: 24px 32px; border: none; outline: none; resize: none;
+  font-family: var(--mono); font-size: 14px; line-height: 1.6;
+  background: var(--bg); color: var(--text);
+}
+#editor-textarea::placeholder { color: var(--text2); }
+.editor-footer {
+  display: flex; align-items: center; gap: 8px; padding: 8px 20px;
+  border-top: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--text2);
+}
+.editor-footer .save-indicator { margin-left: auto; }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; width: 90%; max-width: 420px; display: flex; flex-direction: column; gap: 16px;
+}
+.modal h3 { font-size: 16px; }
+.modal input, .modal textarea {
+  width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 13px; font-family: var(--font); outline: none;
+}
+.modal input:focus, .modal textarea:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* RENDERED CONTENT */
+.rendered { line-height: 1.7; font-size: 15px; }
+.rendered h1, .rendered h2, .rendered h3 { margin-top: 1.5em; margin-bottom: 0.5em; font-weight: 600; }
+.rendered h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.rendered h2 { font-size: 1.3em; }
+.rendered h3 { font-size: 1.1em; }
+.rendered p { margin-bottom: 0.8em; }
+.rendered ul, .rendered ol { padding-left: 1.5em; margin-bottom: 0.8em; }
+.rendered li { margin-bottom: 0.25em; }
+.rendered blockquote {
+  border-left: 3px solid var(--accent); padding: 4px 16px; margin: 12px 0;
+  color: var(--text2); background: #1c2128; border-radius: 0 4px 4px 0;
+}
+.rendered code {
+  font-family: var(--mono); font-size: 0.88em;
+  background: #1c2128; padding: 1px 5px; border-radius: 4px;
+}
+.rendered pre {
+  margin: 12px 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+}
+.rendered pre code { background: transparent; padding: 14px 16px; display: block; overflow-x: auto; }
+.rendered table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.rendered th, .rendered td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.rendered th { background: #1c2128; font-weight: 600; }
+.rendered img { max-width: 100%; border-radius: 6px; margin: 8px 0; }
+.rendered .katex-display { margin: 12px 0; overflow-x: auto; }
+.rendered hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* EMPTY STATE */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 12px; color: var(--text2);
+}
+.empty-state .icon { font-size: 48px; opacity: 0.4; }
+.empty-state p { font-size: 14px; }
+
+/* TOAST */
+#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 10px 16px; border-radius: 8px; font-size: 13px; color: #fff;
+  animation: slideIn .2s ease; max-width: 320px;
+}
+.toast.info { background: #1f6feb; }
+.toast.success { background: #238636; }
+.toast.error { background: #da3633; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* TAGS INPUT */
+.tags-input-wrap {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); min-height: 36px;
+}
+.tags-input-wrap:focus-within { border-color: var(--accent); }
+.tags-input-wrap .tag-item {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px;
+  border-radius: 12px; font-size: 12px; background: var(--accent-dim);
+  color: var(--accent); border: 1px solid var(--accent);
+}
+.tags-input-wrap .tag-item .remove-tag { cursor: pointer; font-size: 14px; line-height: 1; color: var(--accent); margin-left: 2px; }
+.tags-input-wrap input { border: none; outline: none; background: transparent; color: var(--text); font-size: 13px; min-width: 80px; flex: 1; font-family: var(--font); }
+
+@media (max-width: 767px) {
+  #sidebar {
+    position: fixed; left: 0; top: 0; height: 100%; z-index: 50;
+    transform: translateX(-100%);
+  }
+  #sidebar.open { transform: translateX(0); }
+  #menu-toggle { display: block; }
+  .main-content { padding: 16px 20px; }
+  #editor-textarea { padding: 16px 20px; }
+}
+@media (min-width: 768px) {
+  #sidebar { transform: translateX(0) !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <h1 style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+      <span>🧠 Knowledge Vault</span>
+      <button class="btn-icon" id="btn-export" title="导出 JSON">⬇</button>
+    </h1>
+    <button class="btn btn-primary" id="btn-new" style="width:100%">+ 新建笔记</button>
+    <input type="text" id="search-input" placeholder="搜索笔记..." autocomplete="off">
+  </div>
+  <div class="sidebar-body">
+    <div class="sidebar-section"><span class="sidebar-section-title">标签</span></div>
+    <div class="tag-list" id="tag-list"></div>
+    <div class="sidebar-section"><span class="sidebar-section-title" id="note-count">笔记</span></div>
+    <div id="note-list"></div>
+  </div>
+  <div class="sidebar-footer">
+    <button class="btn btn-sm" id="btn-import" style="flex:1">📥 导入</button>
+    <input type="file" id="import-file" accept=".json" style="display:none">
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <div class="main-toolbar">
+    <button id="menu-toggle" title="菜单">☰</button>
+    <input type="text" class="note-title" id="note-title" placeholder="无标题" readonly>
+    <button class="btn btn-sm hidden" id="btn-edit" style="display:none">✏️ 编辑</button>
+    <button class="btn btn-sm hidden" id="btn-save" style="display:none">💾 保存</button>
+    <button class="btn btn-sm btn-danger hidden" id="btn-delete" style="display:none">🗑</button>
+  </div>
+
+  <!-- VIEW MODE -->
+  <div class="main-content rendered" id="content-view">
+    <div class="empty-state" id="empty-state">
+      <span class="icon">📝</span>
+      <p>选择或创建一篇笔记开始记录</p>
+      <button class="btn btn-primary" id="btn-new-empty">+ 新建笔记</button>
+    </div>
+  </div>
+
+  <!-- EDIT MODE -->
+  <div id="editor-area">
+    <textarea id="editor-textarea" placeholder="在此输入 Markdown...&#10;&#10;支持 LaTeX: $E = mc^2$ 或 $$\int_0^1 f(x)dx$$&#10;支持图片拖拽/粘贴&#10;支持代码块: ```python ... ```"></textarea>
+    <div class="editor-footer">
+      <button class="btn btn-sm" id="btn-tag-edit">🏷 标签</button>
+      <span class="save-indicator" id="save-indicator">已保存</span>
+    </div>
+  </div>
+</div>
+
+<!-- TAGS MODAL -->
+<div class="modal-overlay hidden" id="tag-modal-overlay">
+  <div class="modal">
+    <h3>编辑标签</h3>
+    <div class="tags-input-wrap" id="tags-input-wrap">
+      <input type="text" id="tag-input" placeholder="输入标签后按回车..." autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btn-tag-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-tag-done">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay hidden" id="delete-modal-overlay">
+  <div class="modal">
+    <h3>删除笔记</h3>
+    <p style="color:var(--text2);font-size:14px">确定要删除这条笔记吗？此操作不可撤销。</p>
+    <div class="modal-actions">
+      <button class="btn" id="btn-delete-cancel">取消</button>
+      <button class="btn btn-danger" id="btn-delete-confirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- CDN SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+
+<script>
+// ============================================================================
+// MODULE: Utils
+// ============================================================================
+const uid = () => crypto.randomUUID();
+const now = () => new Date().toISOString();
+const escapeHTML = (s) => {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+};
+
+// ============================================================================
+// MODULE: DB (IndexedDB)
+// ============================================================================
+const DB = (() => {
+  const DB_NAME = 'knowledge_vault';
+  const DB_VER = 1;
+  let db = null;
+
+  function open() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains('notes')) {
+          const notes = d.createObjectStore('notes', { keyPath: 'id' });
+          notes.createIndex('updated_at', 'updated_at');
+          notes.createIndex('tags', 'tags', { multiEntry: true });
+        }
+        if (!d.objectStoreNames.contains('attachments')) {
+          const atts = d.createObjectStore('attachments', { keyPath: 'id' });
+          atts.createIndex('note_id', 'note_id');
+        }
+        if (!d.objectStoreNames.contains('settings')) {
+          d.createObjectStore('settings', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function tx(store, mode = 'readonly') {
+    return db.transaction(store, mode).objectStore(store);
+  }
+
+  function promisify(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  const notes = {
+    getAll: () => new Promise((resolve) => {
+      const results = [];
+      const req = tx('notes').index('updated_at').openCursor(null, 'prev');
+      req.onsuccess = () => {
+        const c = req.result;
+        if (c) { results.push(c.value); c.continue(); }
+        else resolve(results);
+      };
+      req.onerror = () => resolve(results);
+    }),
+    getById: (id) => promisify(tx('notes').get(id)),
+    put: (note) => promisify(tx('notes', 'readwrite').put(note)),
+    delete: (id) => promisify(tx('notes', 'readwrite').delete(id)),
+  };
+
+  const attachments = {
+    put: (att) => promisify(tx('attachments', 'readwrite').put(att)),
+    getById: (id) => promisify(tx('attachments').get(id)),
+    getByNoteId: (noteId) => {
+      return new Promise((resolve) => {
+        const results = [];
+        const req = tx('attachments').index('note_id').openCursor(IDBKeyRange.only(noteId));
+        req.onsuccess = () => {
+          const c = req.result;
+          if (c) { results.push(c.value); c.continue(); }
+          else resolve(results);
+        };
+        req.onerror = () => resolve(results);
+      });
+    },
+    delete: (id) => promisify(tx('attachments', 'readwrite').delete(id)),
+    getAll: () => {
+      return new Promise((resolve) => {
+        const results = [];
+        const req = tx('attachments').openCursor();
+        req.onsuccess = () => {
+          const c = req.result;
+          if (c) { results.push(c.value); c.continue(); }
+          else resolve(results);
+        };
+        req.onerror = () => resolve(results);
+      });
+    }
+  };
+
+  const settings = {
+    get: (key) => promisify(tx('settings').get(key)),
+    set: (key, value) => promisify(tx('settings', 'readwrite').put({ key, value })),
+  };
+
+  return { open, notes, attachments, settings };
+})();
+
+// ============================================================================
+// MODULE: Renderer (Markdown + LaTeX + highlight.js)
+// ============================================================================
+const Renderer = (() => {
+  // Protect LaTeX math blocks so marked.js doesn't mangle them
+  function protectMath(md) {
+    const tokens = [];
+    // Protect display math $$...$$
+    let i = 0;
+    while (i < md.length) {
+      if (md[i] === '$' && md[i+1] === '$') {
+        const end = md.indexOf('$$', i + 2);
+        if (end !== -1) {
+          const math = md.slice(i + 2, end);
+          tokens.push({ type: 'display', math });
+          md = md.slice(0, i) + `\x00D${tokens.length - 1}\x00D` + md.slice(end + 2);
+          i += 3; // skip placeholder
+          continue;
+        }
+      }
+      if (md[i] === '$' && md[i-1] !== '$' && md[i+1] !== '$' && md[i+1] !== ' ' && md[i+1] !== undefined) {
+        // Inline math: $...$ with non-space after opening
+        let j = i + 1;
+        let found = false;
+        while (j < md.length) {
+          if (md[j] === '$' && md[j-1] !== ' ' && md[j-1] !== '\\') {
+            const math = md.slice(i + 1, j);
+            if (math.length > 0) {
+              tokens.push({ type: 'inline', math });
+              md = md.slice(0, i) + `\x00I${tokens.length - 1}\x00I` + md.slice(j + 1);
+              found = true;
+              i += 3;
+              break;
+            }
+          }
+          j++;
+        }
+        if (found) continue;
+      }
+      i++;
+    }
+    return { md, tokens };
+  }
+
+  function restoreMath(html, tokens) {
+    let result = html;
+    tokens.forEach((t, idx) => {
+      const placeholder = t.type === 'display'
+        ? `\x00D${idx}\x00D`
+        : `\x00I${idx}\x00I`;
+      try {
+        const rendered = katex.renderToString(t.math, {
+          throwOnError: false,
+          displayMode: t.type === 'display'
+        });
+        result = result.replace(placeholder, rendered);
+      } catch (e) {
+        result = result.replace(placeholder, `<code style="color:var(--danger)">KaTeX Error: ${escapeHTML(t.math)}</code>`);
+      }
+    });
+    return result;
+  }
+
+  function render(md) {
+    if (!md) return '<p style="color:var(--text2)">（空内容）</p>';
+    const { md: protectedMd, tokens } = protectMath(md);
+    let html = marked.parse(protectedMd);
+    html = restoreMath(html, tokens);
+    return html;
+  }
+
+  function highlightCode(root) {
+    root.querySelectorAll('pre code').forEach(block => {
+      hljs.highlightElement(block);
+    });
+  }
+
+  // Resolve attachment:uuid references in img tags
+  async function resolveAttachments(root, noteId) {
+    const imgs = root.querySelectorAll('img');
+    for (const img of imgs) {
+      const src = img.getAttribute('src');
+      if (src && src.startsWith('attachment:')) {
+        const attId = src.slice('attachment:'.length);
+        try {
+          const att = await DB.attachments.getById(attId);
+          if (att && att.data) {
+            img.src = URL.createObjectURL(att.data);
+            if (att.name) img.alt = att.name;
+          } else {
+            img.alt = '[图片已删除]';
+            img.style.opacity = '0.4';
+          }
+        } catch {
+          img.alt = '[加载失败]';
+        }
+      }
+    }
+  }
+
+  return { render, highlightCode, resolveAttachments };
+})();
+
+// ============================================================================
+// MODULE: UI
+// ============================================================================
+const UI = (() => {
+  let state = {
+    notes: [],
+    activeNoteId: null,
+    selectedTag: null,
+    searchQuery: '',
+    viewMode: 'view', // 'view' | 'edit'
+    isDirty: false,
+    pendingTags: [],
+  };
+
+  let saveTimer = null;
+
+  // DOM refs
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  function init() {
+    // Sidebar events
+    $('#btn-new').onclick = () => createNote();
+    $('#btn-new-empty')?.addEventListener('click', () => createNote());
+    $('#search-input').oninput = (e) => {
+      state.searchQuery = e.target.value.toLowerCase();
+      renderNoteList();
+    };
+    $('#btn-export').onclick = () => ExportImport.exportVault();
+    $('#btn-import').onclick = () => $('#import-file').click();
+    $('#import-file').onchange = (e) => ExportImport.importVault(e.target.files[0]);
+
+    // Toolbar events
+    $('#menu-toggle').onclick = () => {
+      $('#sidebar').classList.toggle('open');
+    };
+    $('#btn-edit').onclick = () => enterEditMode();
+    $('#btn-save').onclick = () => exitEditMode(true);
+    $('#btn-delete').onclick = () => {
+      $('#delete-modal-overlay').classList.remove('hidden');
+    };
+    $('#note-title').oninput = () => {
+      state.isDirty = true;
+    };
+
+    // Tag modal
+    $('#btn-tag-edit').onclick = () => openTagModal();
+    $('#btn-tag-cancel').onclick = () => closeTagModal();
+    $('#btn-tag-done').onclick = () => closeTagModal();
+    $('#tag-input').onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addTagItem($('#tag-input').value.trim());
+        $('#tag-input').value = '';
+      }
+    };
+
+    // Delete modal
+    $('#btn-delete-cancel').onclick = () => $('#delete-modal-overlay').classList.add('hidden');
+    $('#btn-delete-confirm').onclick = () => deleteNote();
+
+    // Editor auto-save
+    $('#editor-textarea').oninput = () => {
+      state.isDirty = true;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => autoSave(), 2000);
+    };
+
+    // Image paste
+    $('#editor-textarea').onpaste = (e) => handleImagePaste(e);
+    $('#editor-textarea').ondragover = (e) => e.preventDefault();
+    $('#editor-textarea').ondrop = (e) => handleImageDrop(e);
+
+    // Click sidebar to close on mobile
+    $('#main').onclick = () => {
+      if (window.innerWidth < 768) {
+        $('#sidebar').classList.remove('open');
+      }
+    };
+
+    // Keyboard shortcuts
+    document.onkeydown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); createNote(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); autoSave(); showToast('已保存', 'success'); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); if (state.viewMode === 'view') enterEditMode(); else exitEditMode(true); }
+    };
+  }
+
+  function showToast(msg, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    $('#toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  }
+
+  function setState(partial) {
+    Object.assign(state, partial);
+  }
+
+  // ---- Note List ----
+  function renderNoteList() {
+    let filtered = state.notes;
+    if (state.selectedTag) {
+      filtered = filtered.filter(n => n.tags && n.tags.includes(state.selectedTag));
+    }
+    if (state.searchQuery) {
+      filtered = filtered.filter(n =>
+        n.title.toLowerCase().includes(state.searchQuery) ||
+        (n.tags || []).some(t => t.toLowerCase().includes(state.searchQuery))
+      );
+    }
+    const container = $('#note-list');
+    container.innerHTML = filtered.map(n => `
+      <div class="note-list-item${n.id === state.activeNoteId ? ' active' : ''}" data-id="${n.id}">
+        <span class="title">${escapeHTML(n.title || '无标题')}</span>
+        <span class="meta">${formatDate(n.updated_at)}</span>
+      </div>
+    `).join('') || '<div style="padding:16px;font-size:13px;color:var(--text2)">没有笔记</div>';
+
+    container.querySelectorAll('.note-list-item').forEach(el => {
+      el.onclick = () => selectNote(el.dataset.id);
+    });
+
+    // Render tags
+    renderTagList();
+    $('#note-count').textContent = `笔记 (${filtered.length})`;
+  }
+
+  function renderTagList() {
+    const tagCount = {};
+    state.notes.forEach(n => (n.tags || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }));
+    const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+    const container = $('#tag-list');
+    container.innerHTML = sorted.map(([tag, count]) =>
+      `<span class="tag${state.selectedTag === tag ? ' active' : ''}" data-tag="${escapeHTML(tag)}">${escapeHTML(tag)} (${count})</span>`
+    ).join('');
+    container.querySelectorAll('.tag').forEach(el => {
+      el.onclick = () => {
+        if (state.selectedTag === el.dataset.tag) {
+          state.selectedTag = null;
+        } else {
+          state.selectedTag = el.dataset.tag;
+        }
+        renderNoteList();
+      };
+    });
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return `${Math.floor(diff/60000)} 分钟前`;
+    if (diff < 86400000) return `${Math.floor(diff/3600000)} 小时前`;
+    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  }
+
+  // ---- Note Selection ----
+  async function selectNote(id) {
+    if (state.isDirty) await autoSave();
+    if (state.viewMode === 'edit') exitEditMode(false);
+    state.activeNoteId = id;
+    state.selectedTag = null;
+    const note = state.notes.find(n => n.id === id);
+    if (!note) return;
+
+    $('#note-title').value = note.title;
+    showToolbarButtons(true, false);
+    renderContent(note);
+    renderNoteList();
+  }
+
+  async function renderContent(note) {
+    const view = $('#content-view');
+    view.classList.remove('empty-state');
+    let html = Renderer.render(note.content);
+    view.innerHTML = html;
+    Renderer.highlightCode(view);
+    await Renderer.resolveAttachments(view, note.id);
+
+    // Render any remaining KaTeX (in case marked produced raw LaTeX in HTML)
+    try {
+      renderMathInElement(view, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+        ],
+        throwOnError: false,
+      });
+    } catch(e) { /* ignore */ }
+
+    $('#empty-state')?.remove();
+  }
+
+  // ---- Create Note ----
+  async function createNote() {
+    if (state.isDirty) await autoSave();
+    if (state.viewMode === 'edit') exitEditMode(false);
+
+    const note = {
+      id: uid(),
+      title: '',
+      content: '',
+      tags: [],
+      pinned: false,
+      created_at: now(),
+      updated_at: now(),
+    };
+    await DB.notes.put(note);
+    state.notes.unshift(note);
+    state.activeNoteId = note.id;
+    state.selectedTag = null;
+
+    renderNoteList();
+    enterEditMode();
+  }
+
+  // ---- Edit Mode ----
+  function enterEditMode() {
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (!note) return;
+    state.viewMode = 'edit';
+    $('#content-view').style.display = 'none';
+    $('#editor-area').classList.add('active');
+    $('#editor-textarea').value = note.content;
+    showToolbarButtons(false, true);
+    $('#note-title').removeAttribute('readonly');
+    $('#note-title').focus();
+    setTimeout(() => $('#editor-textarea').focus(), 50);
+  }
+
+  async function exitEditMode(save) {
+    if (save || state.isDirty) await autoSave();
+    state.viewMode = 'view';
+    $('#editor-area').classList.remove('active');
+    $('#content-view').style.display = '';
+    $('#note-title').setAttribute('readonly', '');
+    showToolbarButtons(true, false);
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (note) renderContent(note);
+  }
+
+  function showToolbarButtons(viewMode, editMode) {
+    const hasNote = !!state.activeNoteId;
+    $('#btn-edit').style.display = (viewMode && hasNote) ? '' : 'none';
+    $('#btn-save').style.display = (editMode && hasNote) ? '' : 'none';
+    $('#btn-delete').style.display = hasNote ? '' : 'none';
+    $('#note-title').style.display = hasNote ? '' : 'none';
+  }
+
+  async function autoSave() {
+    if (!state.activeNoteId || !state.isDirty) return;
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (!note) return;
+    note.title = $('#note-title').value.trim();
+    note.content = $('#editor-textarea').value;
+    note.updated_at = now();
+    await DB.notes.put(note);
+    state.isDirty = false;
+    $('#save-indicator').textContent = '已保存';
+    if (state.viewMode === 'edit') {
+      $('#save-indicator').textContent = '已保存 ' + new Date().toLocaleTimeString();
+      setTimeout(() => { if (!state.isDirty) $('#save-indicator').textContent = '已保存'; }, 1500);
+    }
+  }
+
+  // ---- Delete Note ----
+  async function deleteNote() {
+    if (!state.activeNoteId) return;
+    await DB.notes.delete(state.activeNoteId);
+    state.notes = state.notes.filter(n => n.id !== state.activeNoteId);
+    state.activeNoteId = null;
+    state.isDirty = false;
+    $('#delete-modal-overlay').classList.add('hidden');
+    $('#content-view').innerHTML = '<div class="empty-state" id="empty-state"><span class="icon">📝</span><p>选择或创建一篇笔记开始记录</p><button class="btn btn-primary" id="btn-new-empty">+ 新建笔记</button></div>';
+    $('#btn-new-empty').onclick = () => createNote();
+    $('#note-title').value = '';
+    showToolbarButtons(false, false);
+    $('#editor-area').classList.remove('active');
+    $('#content-view').style.display = '';
+    $('#note-title').setAttribute('readonly', '');
+    state.viewMode = 'view';
+    renderNoteList();
+    showToast('笔记已删除', 'info');
+  }
+
+  // ---- Image Handling ----
+  async function handleImagePaste(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        await saveAttachment(blob);
+      }
+    }
+  }
+
+  async function handleImageDrop(e) {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (!files) return;
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        await saveAttachment(file);
+      }
+    }
+  }
+
+  async function saveAttachment(file) {
+    if (!state.activeNoteId) return;
+    const attId = uid();
+    const att = {
+      id: attId,
+      note_id: state.activeNoteId,
+      name: file.name || 'image.png',
+      mime_type: file.type,
+      data: file,
+      created_at: now(),
+    };
+    await DB.attachments.put(att);
+
+    // Insert markdown reference at cursor
+    const mdRef = `![${att.name}](attachment:${attId})`;
+    const textarea = $('#editor-textarea');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    textarea.value = textarea.value.slice(0, start) + mdRef + '\n' + textarea.value.slice(end);
+    textarea.selectionStart = textarea.selectionEnd = start + mdRef.length + 1;
+    textarea.focus();
+    state.isDirty = true;
+    $('#save-indicator').textContent = '图片已插入';
+    showToast('图片已插入', 'success');
+  }
+
+  // ---- Tag Modal ----
+  function openTagModal() {
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (!note) return;
+    state.pendingTags = [...(note.tags || [])];
+    renderTagItems();
+    $('#tag-modal-overlay').classList.remove('hidden');
+    setTimeout(() => $('#tag-input').focus(), 100);
+  }
+
+  function closeTagModal() {
+    $('#tag-modal-overlay').classList.add('hidden');
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (note) {
+      note.tags = [...state.pendingTags];
+      note.updated_at = now();
+      DB.notes.put(note);
+      state.isDirty = true;
+      renderNoteList();
+    }
+  }
+
+  function addTagItem(tag) {
+    if (tag && !state.pendingTags.includes(tag)) {
+      state.pendingTags.push(tag);
+      renderTagItems();
+    }
+  }
+
+  function removeTagItem(tag) {
+    state.pendingTags = state.pendingTags.filter(t => t !== tag);
+    renderTagItems();
+  }
+
+  function renderTagItems() {
+    const wrap = $('#tags-input-wrap');
+    const input = $('#tag-input');
+    wrap.querySelectorAll('.tag-item').forEach(el => el.remove());
+    state.pendingTags.forEach(tag => {
+      const span = document.createElement('span');
+      span.className = 'tag-item';
+      span.innerHTML = `${escapeHTML(tag)}<span class="remove-tag" data-tag="${escapeHTML(tag)}">&times;</span>`;
+      span.querySelector('.remove-tag').onclick = () => removeTagItem(tag);
+      wrap.insertBefore(span, input);
+    });
+  }
+
+  return { init, state: () => state, setState, renderNoteList, showToast, selectNote, createNote };
+})();
+
+// ============================================================================
+// MODULE: Export / Import
+// ============================================================================
+const ExportImport = (() => {
+  async function exportVault() {
+    try {
+      const notes = await DB.notes.getAll();
+      const atts = await DB.attachments.getAll();
+      // Convert blob data to base64 for export
+      const attsExport = await Promise.all(atts.map(async (a) => {
+        let data64 = null;
+        if (a.data) {
+          data64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(a.data);
+          });
+        }
+        return { ...a, data: data64 };
+      }));
+
+      const payload = { version: 1, exported_at: now(), notes, attachments: attsExport };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `knowledge-vault-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      UI.showToast(`已导出 ${notes.length} 条笔记`, 'success');
+    } catch (e) {
+      UI.showToast('导出失败: ' + e.message, 'error');
+    }
+  }
+
+  async function importVault(file) {
+    if (!file) return;
+    try {
+      const text = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsText(file);
+      });
+      const payload = JSON.parse(text);
+      if (!payload.version || !payload.notes) throw new Error('无效的备份文件');
+
+      for (const note of payload.notes) {
+        await DB.notes.put(note);
+      }
+      if (payload.attachments) {
+        for (const att of payload.attachments) {
+          let blobData = null;
+          if (att.data && typeof att.data === 'string' && att.data.startsWith('data:')) {
+            const resp = await fetch(att.data);
+            blobData = await resp.blob();
+          }
+          await DB.attachments.put({ ...att, data: blobData });
+        }
+      }
+
+      // Reload
+      const state = UI.state();
+      state.notes = await DB.notes.getAll();
+      state.activeNoteId = null;
+      state.isDirty = false;
+      UI.renderNoteList();
+      // Reset view
+      const contentView = document.querySelector('#content-view');
+      contentView.innerHTML = '<div class="empty-state" id="empty-state"><span class="icon">📝</span><p>选择或创建一篇笔记开始记录</p><button class="btn btn-primary" id="btn-new-empty">+ 新建笔记</button></div>';
+      document.querySelector('#btn-new-empty').addEventListener('click', () => UI.createNote());
+      document.querySelector('#note-title').value = '';
+      UI.showToast(`已导入 ${payload.notes.length} 条笔记`, 'success');
+    } catch (e) {
+      UI.showToast('导入失败: ' + e.message, 'error');
+    }
+    // Reset file input
+    document.querySelector('#import-file').value = '';
+  }
+
+  return { exportVault, importVault };
+})();
+
+// ============================================================================
+// MODULE: App (Bootstrap)
+// ============================================================================
+const App = (() => {
+  async function init() {
+    try {
+      await DB.open();
+    } catch (e) {
+      console.error('IndexedDB 不可用:', e);
+      UI.showToast('数据库不可用，数据将无法保存', 'error');
+    }
+
+    const notes = await DB.notes.getAll();
+    UI.setState({ notes });
+    UI.init();
+    UI.renderNoteList();
+
+    // Hide editor area initially
+    document.querySelector('#editor-area').classList.remove('active');
+  }
+  return { init };
+})();
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+
+</body>
+</html>
