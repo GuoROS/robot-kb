@@ -1,7 +1,16 @@
 {
   "version": 1,
-  "synced_at": "2026-05-05T16:46:24.390Z",
+  "synced_at": "2026-05-05T16:45:26.656Z",
   "notes": [
+    {
+      "id": "b120fbe7-0f62-4257-8c67-bdd3a51b1b06",
+      "title": "新建一个呢",
+      "content": "",
+      "tags": [],
+      "pinned": false,
+      "created_at": "2026-05-05T16:29:12.334Z",
+      "updated_at": "2026-05-05T16:29:17.238Z"
+    },
     {
       "id": "c89493e7-6e9d-4526-97ac-64be91b212bb",
       "title": "什么情况",
@@ -341,5 +350,5 @@
       "deleted_at": "2026-05-05T15:12:06.106Z"
     }
   ],
-  "_sha": "0bd3ce7519dcfc97b6e1b9816c7725412954f601"
+  "_sha": "f5a87fce5a11dc4fba78e6b1e5995085eb130536"
 }
