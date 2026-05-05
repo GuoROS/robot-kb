@@ -1,16 +1,7 @@
 {
   "version": 1,
-  "synced_at": "2026-05-05T15:59:40.259Z",
+  "synced_at": "2026-05-05T16:00:49.216Z",
   "notes": [
-    {
-      "id": "0cbcccc1-e3a0-45bc-8142-3ee3597dc951",
-      "title": "这样测试呢，电脑输入保存",
-      "content": "",
-      "tags": [],
-      "pinned": false,
-      "created_at": "2026-05-05T15:56:06.524Z",
-      "updated_at": "2026-05-05T15:56:18.440Z"
-    },
     {
       "id": "1efdb03f-e7ec-4964-ab00-c66ce33055e2",
       "title": "手机测试",
@@ -219,7 +210,16 @@
       "created_at": "2026-05-05T14:51:17.519Z",
       "updated_at": "2026-05-05T15:12:06.106Z",
       "deleted_at": "2026-05-05T15:12:06.106Z"
+    },
+    {
+      "id": "0cbcccc1-e3a0-45bc-8142-3ee3597dc951",
+      "title": "这样测试呢，电脑输入保存",
+      "content": "",
+      "tags": [],
+      "pinned": false,
+      "created_at": "2026-05-05T15:56:06.524Z",
+      "updated_at": "2026-05-05T15:56:18.440Z"
     }
   ],
-  "_sha": "9d47bb718207d08682d2532bc2554ccfe44529b1"
+  "_sha": "07bec5b2ae0694c35f67f9637df3d19f675a998f"
 }
