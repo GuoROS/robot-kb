@@ -254,6 +254,7 @@ a { color: var(--accent); }
     <h1 style="display:flex;align-items:center;gap:8px;justify-content:space-between">
       <span>🧠 Knowledge Vault</span>
       <button class="btn-icon" id="btn-export" title="导出 JSON">⬇</button>
+              <button class="btn-icon" id="btn-sync" title="同步">🔄</button>
     </h1>
     <button class="btn btn-primary" id="btn-new" style="width:100%">+ 新建笔记</button>
     <input type="text" id="search-input" placeholder="搜索笔记..." autocomplete="off">
@@ -327,6 +328,20 @@ a { color: var(--accent); }
     <div class="modal-actions">
       <button class="btn" id="btn-delete-cancel">取消</button>
       <button class="btn btn-danger" id="btn-delete-confirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOKEN MODAL -->
+<div class="modal-overlay hidden" id="token-modal-overlay">
+  <div class="modal">
+    <h3>GitHub 同步设置</h3>
+    <p style="color:var(--text2);font-size:13px">需要 GitHub Personal Access Token，权限勾选 <b>repo</b>。Token 仅存储在本地浏览器。</p>
+    <a href="https://github.com/settings/tokens/new?scopes=repo&description=robot-kb-sync" target="_blank" style="font-size:12px">→ 点此创建 Token</a>
+    <input type="password" id="token-input" placeholder="ghp_xxxxxxxx" style="margin-top:8px">
+    <div class="modal-actions">
+      <button class="btn" id="btn-token-cancel">取消</button>
+      <button class="btn btn-primary" id="btn-token-save">保存并同步</button>
     </div>
   </div>
 </div>
@@ -1036,6 +1051,198 @@ const ExportImport = (() => {
   }
 
   return { exportVault, importVault };
+})();
+
+// ============================================================================
+// MODULE: Sync (GitHub API)
+// ============================================================================
+const Sync = (() => {
+  const REPO = 'GuoROS/robot-kb';
+  const PATH = 'data.json';
+
+  function b64enc(s) {
+    // Unicode-safe base64
+    const bytes = new TextEncoder().encode(s);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64dec(s) {
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  async function getToken() {
+    try {
+      const s = await DB.settings.get('github_token');
+      return s?.value || null;
+    } catch (e) { return null; }
+  }
+
+  async function saveToken(t) {
+    await DB.settings.set('github_token', t);
+  }
+
+  function showTokenModal() {
+    document.querySelector('#token-modal-overlay').classList.remove('hidden');
+    document.querySelector('#token-input').focus();
+  }
+
+  // Fetch data.json from GitHub. Returns { notes, attachments, _sha } or null.
+  async function fetchRemote(token) {
+    const url = `https://api.github.com/repos/${REPO}/contents/${PATH}?t=${Date.now()}`;
+    const resp = await fetch(url, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`GitHub API: ${resp.status} ${resp.statusText}`);
+    const file = await resp.json();
+    const payload = JSON.parse(b64dec(file.content));
+    payload._sha = file.sha;
+    return payload;
+  }
+
+  // Push data.json to GitHub
+  async function pushRemote(token, payload) {
+    const body = {
+      message: 'sync',
+      content: b64enc(JSON.stringify(payload, null, 2)),
+    };
+    if (payload._sha) body.sha = payload._sha;
+
+    const url = `https://api.github.com/repos/${REPO}/contents/${PATH}`;
+    const resp = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`GitHub API: ${resp.status} ${resp.statusText}`);
+  }
+
+  // Merge by updated_at: later wins
+  function merge(localItems, remoteItems) {
+    const map = {};
+    for (const item of localItems) map[item.id] = item;
+    for (const r of remoteItems) {
+      if (!map[r.id] || new Date(r.updated_at) > new Date(map[r.id].updated_at)) {
+        map[r.id] = r;
+      }
+    }
+    return Object.values(map);
+  }
+
+  async function sync() {
+    const token = await getToken();
+    if (!token) { showTokenModal(); return; }
+
+    UI.showToast('正在同步...', 'info');
+
+    try {
+      // 1. Fetch remote
+      const remote = await fetchRemote(token);
+
+      // 2. Get local data
+      const localNotes = await DB.notes.getAll();
+      const localAtts = await DB.attachments.getAll();
+
+      // 3. Merge
+      const mergedNotes = remote
+        ? merge(localNotes, remote.notes || [])
+        : localNotes;
+      const mergedAtts = remote
+        ? merge(localAtts, remote.attachments || [])
+        : localAtts;
+
+      // 4. Convert attachment blobs to base64 for remote push
+      const attsForPush = await Promise.all(mergedAtts.map(async (a) => {
+        let data64 = null;
+        if (a.data && a.data instanceof Blob) {
+          data64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(a.data);
+          });
+        } else if (typeof a.data === 'string') {
+          data64 = a.data;
+        }
+        return { ...a, data: data64 };
+      }));
+
+      const payload = {
+        version: 1,
+        synced_at: now(),
+        notes: mergedNotes,
+        attachments: attsForPush,
+      };
+      if (remote?._sha) payload._sha = remote._sha;
+
+      // 5. Push merged data
+      await pushRemote(token, payload);
+
+      // 6. Update local DB with merged data
+      for (const note of mergedNotes) {
+        await DB.notes.put(note);
+      }
+      for (const att of mergedAtts) {
+        // Preserve Blob data in local DB
+        if (att.data instanceof Blob || att.data instanceof File) {
+          await DB.attachments.put(att);
+        } else {
+          // Data is base64 from remote, convert to blob
+          let blob = null;
+          if (att.data && typeof att.data === 'string' && att.data.startsWith('data:')) {
+            const resp = await fetch(att.data);
+            blob = await resp.blob();
+          }
+          await DB.attachments.put({ ...att, data: blob });
+        }
+      }
+
+      // 7. Reload
+      const state = UI.state();
+      state.notes = await DB.notes.getAll();
+      state.activeNoteId = null;
+      state.isDirty = false;
+      UI.renderNoteList();
+      // Reset view
+      const contentView = document.querySelector('#content-view');
+      contentView.innerHTML = '<div class="empty-state" id="empty-state"><span class="icon">📝</span><p>选择或创建一篇笔记开始记录</p><button class="btn btn-primary" id="btn-new-empty">+ 新建笔记</button></div>';
+      document.querySelector('#note-title').value = '';
+      UI.showToast(`同步完成 — ${mergedNotes.length} 条笔记`, 'success');
+    } catch (e) {
+      UI.showToast('同步失败: ' + e.message, 'error');
+      console.error('Sync error:', e);
+    }
+  }
+
+  // Token modal events
+  function init() {
+    document.querySelector('#btn-sync').onclick = () => sync();
+    document.querySelector('#btn-token-cancel').onclick = () => {
+      document.querySelector('#token-modal-overlay').classList.add('hidden');
+    };
+    document.querySelector('#btn-token-save').onclick = async () => {
+      const token = document.querySelector('#token-input').value.trim();
+      if (!token) return;
+      await saveToken(token);
+      document.querySelector('#token-modal-overlay').classList.add('hidden');
+      sync();
+    };
+    // Allow Enter to save in token modal
+    document.querySelector('#token-input').onkeydown = (e) => {
+      if (e.key === 'Enter') document.querySelector('#btn-token-save').click();
+    };
+  }
+
+  init();
+
+  return { sync, showTokenModal };
 })();
 
 // ============================================================================
