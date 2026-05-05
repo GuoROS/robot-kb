@@ -303,6 +303,7 @@ a { color: var(--accent); }
     <button id="nav-notes"><span class="icon">📋</span>笔记</button>
     <button id="nav-new"><span class="icon">＋</span>新建</button>
     <button id="nav-edit"><span class="icon">✏️</span>编辑</button>
+    <button id="nav-delete"><span class="icon">🗑</span>删除</button>
   </nav>
 </div>
 
@@ -662,6 +663,12 @@ const UI = (() => {
       if (state.viewMode === 'edit') exitEditMode(true);
       else enterEditMode();
     };
+    $('#nav-delete').onclick = (e) => {
+      e.stopPropagation();
+      if (state.activeNoteId) {
+        $('#delete-modal-overlay').classList.remove('hidden');
+      }
+    };
 
     // Keyboard shortcuts
     document.onkeydown = (e) => {
@@ -905,6 +912,7 @@ const UI = (() => {
       mime_type: file.type,
       data: file,
       created_at: now(),
+      updated_at: now(),
     };
     await DB.attachments.put(att);
 
