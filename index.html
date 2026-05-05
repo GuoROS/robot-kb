@@ -660,6 +660,24 @@ const UI = (() => {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
+  function openSidebar() {
+    const sb = $('#sidebar');
+    sb.classList.add('open');
+    const bd = document.getElementById('sidebar-backdrop');
+    if (bd && window.innerWidth < 768) bd.style.display = 'block';
+    document.querySelectorAll('.rendered .video-wrap iframe').forEach(f => f.style.visibility = 'hidden');
+  }
+  function closeSidebar() {
+    const sb = $('#sidebar');
+    sb.classList.remove('open');
+    const bd = document.getElementById('sidebar-backdrop');
+    if (bd) bd.style.display = 'none';
+    document.querySelectorAll('.rendered .video-wrap iframe').forEach(f => f.style.visibility = '');
+  }
+  function toggleSidebar() {
+    if ($('#sidebar').classList.contains('open')) closeSidebar(); else openSidebar();
+  }
+
   function init() {
     // Sidebar events
     $('#btn-new').onclick = () => createNote();
@@ -720,25 +738,6 @@ const UI = (() => {
     $('#editor-textarea').onpaste = (e) => handleImagePaste(e);
     $('#editor-textarea').ondragover = (e) => e.preventDefault();
     $('#editor-textarea').ondrop = (e) => handleImageDrop(e);
-
-    // Sidebar toggle with backdrop and iframe management
-    function openSidebar() {
-      const sb = $('#sidebar');
-      sb.classList.add('open');
-      const bd = document.getElementById('sidebar-backdrop');
-      if (bd && window.innerWidth < 768) bd.style.display = 'block';
-      document.querySelectorAll('.rendered .video-wrap iframe').forEach(f => f.style.visibility = 'hidden');
-    }
-    function closeSidebar() {
-      const sb = $('#sidebar');
-      sb.classList.remove('open');
-      const bd = document.getElementById('sidebar-backdrop');
-      if (bd) bd.style.display = 'none';
-      document.querySelectorAll('.rendered .video-wrap iframe').forEach(f => f.style.visibility = '');
-    }
-    function toggleSidebar() {
-      if ($('#sidebar').classList.contains('open')) closeSidebar(); else openSidebar();
-    }
 
     // Backdrop click closes sidebar
     const backdrop = document.getElementById('sidebar-backdrop');
@@ -1480,7 +1479,7 @@ const Sync = (() => {
       const s = UI.state();
       s.notes = await DB.notes.getAll();
       UI.renderNoteList();
-    } catch (e) { /* silent - will sync on next manual attempt */ }
+    } catch (e) { console.error('Sync autoPull failed:', e); }
   }
 
   // Auto-push after save (debounced, silent)
@@ -1497,7 +1496,7 @@ const Sync = (() => {
         const payload = { version: 1, synced_at: now(), notes: merged };
         if (remote?._sha) payload._sha = remote._sha;
         await pushRemote(token, payload);
-      } catch (e) { /* silent */ }
+      } catch (e) { console.error('Sync autoPush failed:', e); }
     }, 5000);
   }
 
