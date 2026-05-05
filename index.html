@@ -243,6 +243,15 @@ a { color: var(--accent); }
 #mobile-nav button .icon { font-size: 18px; }
 @media (max-width: 767px) { #mobile-nav { display: flex; } }
 @media (min-width: 768px) { #mobile-nav { display: none; } }
+
+/* Split preview */
+#split-preview { display: none; overflow-y: auto; padding: 16px 20px; border-left: 1px solid var(--border); }
+#main.split-active { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; }
+#main.split-active .main-toolbar { grid-column: 1 / -1; }
+#main.split-active #editor-area { display: flex; }
+#main.split-active #split-preview { display: block; }
+#main.split-active #content-view { display: none; }
+@media (max-width: 767px) { #btn-split { display: none !important; } }
 @media (min-width: 768px) {
   #sidebar { transform: translateX(0) !important; }
 }
@@ -299,6 +308,7 @@ a { color: var(--accent); }
     <button id="menu-toggle" title="菜单">☰ 笔记</button>
     <input type="text" class="note-title" id="note-title" placeholder="无标题" readonly>
     <button class="btn btn-sm hidden" id="btn-edit" style="display:none">✏️ 编辑</button>
+    <button class="btn btn-sm hidden" id="btn-split" style="display:none">🪟 分屏</button>
     <button class="btn btn-sm hidden" id="btn-save" style="display:none">💾 保存</button>
     <button class="btn btn-sm btn-danger hidden" id="btn-delete" style="display:none">🗑</button>
   </div>
@@ -320,6 +330,8 @@ a { color: var(--accent); }
       <span class="save-indicator" id="save-indicator">已保存</span>
     </div>
   </div>
+
+  <div id="split-preview" class="rendered"></div>
 
   <nav id="mobile-nav">
     <button id="nav-notes"><span class="icon">📋</span>笔记</button>
@@ -643,6 +655,10 @@ const UI = (() => {
       $('#sidebar').classList.toggle('open');
     };
     $('#btn-edit').onclick = () => enterEditMode();
+    $('#btn-split').onclick = () => {
+      if (state.viewMode === 'split') exitSplitMode();
+      else enterSplitMode();
+    };
     $('#btn-save').onclick = () => exitEditMode(true);
     $('#btn-delete').onclick = () => {
       $('#delete-modal-overlay').classList.remove('hidden');
@@ -852,6 +868,11 @@ const UI = (() => {
   function enterEditMode() {
     const note = state.notes.find(n => n.id === state.activeNoteId);
     if (!note) return;
+    if (state.viewMode === 'split') {
+      $('#main').classList.remove('split-active');
+      $('#split-preview').style.display = '';
+      if (splitTimer) clearTimeout(splitTimer);
+    }
     state.viewMode = 'edit';
     $('#content-view').style.display = 'none';
     $('#editor-area').classList.add('active');
@@ -879,6 +900,46 @@ const UI = (() => {
     $('#btn-save').style.display = (editMode && hasNote) ? '' : 'none';
     $('#btn-delete').style.display = hasNote ? '' : 'none';
     $('#note-title').style.display = hasNote ? '' : 'none';
+    $('#btn-split').style.display = hasNote ? '' : 'none';
+  }
+
+  let splitTimer = null;
+  function enterSplitMode() {
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (!note) return;
+    state.viewMode = 'split';
+    $('#main').classList.add('split-active');
+    $('#editor-area').classList.add('active');
+    $('#editor-textarea').value = note.content;
+    showToolbarButtons(false, false);
+    $('#note-title').removeAttribute('readonly');
+    updateSplitPreview();
+    $('#editor-textarea').oninput = () => {
+      state.isDirty = true;
+      if (splitTimer) clearTimeout(splitTimer);
+      splitTimer = setTimeout(() => updateSplitPreview(), 300);
+    };
+  }
+
+  function exitSplitMode() {
+    state.viewMode = 'view';
+    $('#main').classList.remove('split-active');
+    $('#editor-area').classList.remove('active');
+    $('#split-preview').style.display = '';
+    $('#note-title').setAttribute('readonly', '');
+    $('#editor-textarea').oninput = null;
+    if (splitTimer) clearTimeout(splitTimer);
+    const note = state.notes.find(n => n.id === state.activeNoteId);
+    if (note) renderContent(note);
+    showToolbarButtons(true, false);
+  }
+
+  function updateSplitPreview() {
+    const md = $('#editor-textarea').value;
+    const html = Renderer.render(md);
+    const preview = $('#split-preview');
+    preview.innerHTML = html;
+    Renderer.highlightCode(preview);
   }
 
   async function autoSave() {
