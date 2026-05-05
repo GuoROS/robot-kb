@@ -1,7 +1,37 @@
 {
   "version": 1,
-  "synced_at": "2026-05-05T16:05:47.251Z",
+  "synced_at": "2026-05-05T16:13:43.635Z",
   "notes": [
+    {
+      "id": "f57eee45-839c-4707-99ad-fb3570651bc8",
+      "title": "电脑再试一下呢",
+      "content": "",
+      "tags": [],
+      "pinned": false,
+      "created_at": "2026-05-05T16:00:27.296Z",
+      "updated_at": "2026-05-05T16:13:30.229Z",
+      "deleted_at": "2026-05-05T16:13:30.229Z"
+    },
+    {
+      "id": "0cbcccc1-e3a0-45bc-8142-3ee3597dc951",
+      "title": "这样测试呢，电脑输入保存",
+      "content": "$E=mc^2$",
+      "tags": [],
+      "pinned": false,
+      "created_at": "2026-05-05T15:56:06.524Z",
+      "updated_at": "2026-05-05T16:13:25.047Z",
+      "deleted_at": "2026-05-05T16:13:25.046Z"
+    },
+    {
+      "id": "b29d7e2e-aa09-4883-a350-8cddeeb93029",
+      "title": "难道说要手机点一下同步，电脑再点同步才有",
+      "content": "",
+      "tags": [],
+      "pinned": false,
+      "created_at": "2026-05-05T16:00:57.888Z",
+      "updated_at": "2026-05-05T16:03:29.716Z",
+      "deleted_at": "2026-05-05T16:03:29.716Z"
+    },
     {
       "id": "b78da2d1-bb81-4ede-bc51-db8f42b1aaf6",
       "title": "我在手机测一下呢",
@@ -51,34 +81,6 @@
       "created_at": "2026-05-05T16:00:55.169Z",
       "updated_at": "2026-05-05T16:01:14.577Z",
       "deleted_at": "2026-05-05T16:01:14.577Z"
-    },
-    {
-      "id": "b29d7e2e-aa09-4883-a350-8cddeeb93029",
-      "title": "难道说要手机点一下同步，电脑再点同步才有",
-      "content": "",
-      "tags": [],
-      "pinned": false,
-      "created_at": "2026-05-05T16:00:57.888Z",
-      "updated_at": "2026-05-05T16:03:29.716Z",
-      "deleted_at": "2026-05-05T16:03:29.716Z"
-    },
-    {
-      "id": "f57eee45-839c-4707-99ad-fb3570651bc8",
-      "title": "电脑再试一下呢",
-      "content": "",
-      "tags": [],
-      "pinned": false,
-      "created_at": "2026-05-05T16:00:27.296Z",
-      "updated_at": "2026-05-05T16:00:33.083Z"
-    },
-    {
-      "id": "0cbcccc1-e3a0-45bc-8142-3ee3597dc951",
-      "title": "这样测试呢，电脑输入保存",
-      "content": "$E=mc^2$",
-      "tags": [],
-      "pinned": false,
-      "created_at": "2026-05-05T15:56:06.524Z",
-      "updated_at": "2026-05-05T16:04:11.095Z"
     },
     {
       "id": "1efdb03f-e7ec-4964-ab00-c66ce33055e2",
@@ -290,5 +292,5 @@
       "deleted_at": "2026-05-05T15:12:06.106Z"
     }
   ],
-  "_sha": "a544d1a8d66e29c2c0cb4ac8eab1191d69166381"
+  "_sha": "a39a30782b974cb148b3d5e7e5a68f107405c38e"
 }
