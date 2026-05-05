@@ -1172,65 +1172,33 @@ const Sync = (() => {
     UI.showToast('正在同步...', 'info');
 
     try {
-      // 1. Fetch remote
+      // 1. Fetch remote (notes only, no attachments for speed)
       const remote = await fetchRemote(token);
 
-      // 2. Get local data
+      // 2. Get local notes
       const localNotes = await DB.notes.getAll();
-      const localAtts = await DB.attachments.getAll();
 
-      // 3. Merge
+      // 3. Merge notes
       const mergedNotes = remote
         ? merge(localNotes, remote.notes || [])
         : localNotes;
-      const mergedAtts = remote
-        ? merge(localAtts, remote.attachments || [])
-        : localAtts;
-
-      // 4. Convert attachment blobs to base64 for remote push
-      const attsForPush = await Promise.all(mergedAtts.map(async (a) => {
-        let data64 = null;
-        if (a.data && a.data instanceof Blob) {
-          data64 = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(a.data);
-          });
-        } else if (typeof a.data === 'string') {
-          data64 = a.data;
-        }
-        return { ...a, data: data64 };
-      }));
 
       const payload = {
         version: 1,
         synced_at: now(),
         notes: mergedNotes,
-        attachments: attsForPush,
       };
       if (remote?._sha) payload._sha = remote._sha;
 
-      // 5. Push merged data
+      // 4. Push merged data (notes only, lightweight)
       await pushRemote(token, payload);
 
-      // 6. Update local DB with merged data
+      // 5. Update local DB with merged notes
       for (const note of mergedNotes) {
         await DB.notes.put(note);
       }
-      for (const att of mergedAtts) {
-        if (att.data instanceof Blob || att.data instanceof File) {
-          await DB.attachments.put(att);
-        } else {
-          let blob = null;
-          if (att.data && typeof att.data === 'string' && att.data.startsWith('data:')) {
-            const resp = await fetch(att.data);
-            blob = await resp.blob();
-          }
-          await DB.attachments.put({ ...att, data: blob });
-        }
-      }
 
-      // 7. Reload
+      // 6. Reload
       const state = UI.state();
       state.notes = await DB.notes.getAll();
       state.activeNoteId = null;
