@@ -96,6 +96,9 @@ a { color: var(--accent); }
 .note-list-item.active { background: #1c2128; border-left-color: var(--accent); }
 .note-list-item .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note-list-item .meta { font-size: 11px; color: var(--text2); }
+.note-list-item .select-cb { display: none; margin-right: 8px; accent-color: var(--accent); }
+.selecting .note-list-item .select-cb { display: inline-block; }
+.selecting .note-list-item { display: flex; align-items: center; flex-direction: row; }
 
 .sidebar-footer {
   padding: 10px 16px; border-top: 1px solid var(--border);
@@ -180,8 +183,8 @@ a { color: var(--accent); }
 .rendered th, .rendered td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
 .rendered th { background: #1c2128; font-weight: 600; }
 .rendered img { max-width: 100%; border-radius: 6px; margin: 8px 0; }
-.rendered .video-wrap { position: relative; padding-bottom: 56.25%; margin: 12px 0; }
-.rendered .video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: var(--radius); }
+.rendered .video-wrap { position: relative; padding-bottom: 56.25%; margin: 12px 0; z-index: 0; }
+.rendered .video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: var(--radius); z-index: 0; }
 .rendered .katex-display { margin: 12px 0; overflow-x: auto; }
 .rendered hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
@@ -252,6 +255,9 @@ a { color: var(--accent); }
 #main.split-active #split-preview { display: block; }
 #main.split-active #content-view { display: none; }
 @media (max-width: 767px) { #btn-split { display: none !important; } }
+@media (max-width: 767px) {
+  #toast-container { bottom: auto; top: 60px; right: 12px; }
+}
 @media (min-width: 768px) {
   #sidebar { transform: translateX(0) !important; }
 }
@@ -297,7 +303,9 @@ a { color: var(--accent); }
     <div id="note-list"></div>
   </div>
   <div class="sidebar-footer">
+    <button class="btn btn-sm" id="btn-select" style="flex:1">☑ 选择</button>
     <button class="btn btn-sm" id="btn-import" style="flex:1">📥 导入</button>
+    <button class="btn btn-sm btn-danger hidden" id="btn-batch-delete" style="display:none">🗑 删除已选</button>
     <input type="file" id="import-file" accept=".json" style="display:none">
   </div>
 </aside>
@@ -625,9 +633,11 @@ const UI = (() => {
     activeNoteId: null,
     selectedTag: null,
     searchQuery: '',
-    viewMode: 'view', // 'view' | 'edit'
+    viewMode: 'view', // 'view' | 'edit' | 'split'
     isDirty: false,
     pendingTags: [],
+    selectMode: false,
+    selectedNotes: new Set(),
   };
 
   let saveTimer = null;
@@ -646,6 +656,8 @@ const UI = (() => {
     };
     $('#btn-export').onclick = () => ExportImport.exportVault();
     $('#btn-theme').onclick = () => toggleTheme();
+    $('#btn-select').onclick = () => toggleSelectMode();
+    $('#btn-batch-delete').onclick = () => batchDelete();
     $('#btn-import').onclick = () => $('#import-file').click();
     $('#import-file').onchange = (e) => ExportImport.importVault(e.target.files[0]);
 
@@ -758,15 +770,28 @@ const UI = (() => {
       );
     }
     const container = $('#note-list');
+    container.className = state.selectMode ? 'selecting' : '';
     container.innerHTML = filtered.map(n => `
       <div class="note-list-item${n.id === state.activeNoteId ? ' active' : ''}" data-id="${n.id}">
-        <span class="title">${escapeHTML(n.title || '无标题')}</span>
-        <span class="meta">${formatDate(n.updated_at)}</span>
+        <input type="checkbox" class="select-cb" data-id="${n.id}" ${state.selectedNotes.has(n.id) ? 'checked' : ''}>
+        <span>
+          <span class="title">${escapeHTML(n.title || '无标题')}</span>
+          <span class="meta">${formatDate(n.updated_at)}</span>
+        </span>
       </div>
     `).join('') || '<div style="padding:16px;font-size:13px;color:var(--text2)">没有笔记</div>';
 
     container.querySelectorAll('.note-list-item').forEach(el => {
-      el.onclick = () => selectNote(el.dataset.id);
+      if (state.selectMode) {
+        el.querySelector('.select-cb').onchange = (e) => {
+          e.stopPropagation();
+          if (e.target.checked) state.selectedNotes.add(el.dataset.id);
+          else state.selectedNotes.delete(el.dataset.id);
+          updateBatchDeleteBtn();
+        };
+      } else {
+        el.onclick = () => selectNote(el.dataset.id);
+      }
     });
 
     // Render tags
@@ -980,6 +1005,40 @@ const UI = (() => {
     state.viewMode = 'view';
     renderNoteList();
     showToast('笔记已删除', 'info');
+  }
+
+  // ---- Batch Delete ----
+  function toggleSelectMode() {
+    state.selectMode = !state.selectMode;
+    state.selectedNotes.clear();
+    updateBatchDeleteBtn();
+    renderNoteList();
+  }
+
+  function updateBatchDeleteBtn() {
+    const btn = $('#btn-batch-delete');
+    btn.style.display = state.selectMode && state.selectedNotes.size > 0 ? '' : 'none';
+    btn.textContent = `🗑 删除已选 (${state.selectedNotes.size})`;
+  }
+
+  async function batchDelete() {
+    if (state.selectedNotes.size === 0) return;
+    const count = state.selectedNotes.size;
+    const deletedActive = state.selectedNotes.has(state.activeNoteId);
+    for (const id of state.selectedNotes) {
+      const note = state.notes.find(n => n.id === id);
+      if (note) {
+        note.deleted_at = now();
+        note.updated_at = now();
+        await DB.notes.put(note);
+      }
+    }
+    state.selectedNotes.clear();
+    state.selectMode = false;
+    if (deletedActive) state.activeNoteId = null;
+    updateBatchDeleteBtn();
+    renderNoteList();
+    showToast(`已删除 ${count} 条笔记`, 'info');
   }
 
   // ---- Image Handling ----
@@ -1318,16 +1377,15 @@ const Sync = (() => {
         await DB.notes.put(note);
       }
 
-      // 6. Reload
+      // 6. Reload without clearing active note
       const state = UI.state();
+      const savedNoteId = state.activeNoteId;
       state.notes = await DB.notes.getAll();
-      state.activeNoteId = null;
       state.isDirty = false;
       UI.renderNoteList();
-      // Reset view
-      const contentView = document.querySelector('#content-view');
-      contentView.innerHTML = '<div class="empty-state" id="empty-state"><span class="icon">📝</span><p>选择或创建一篇笔记开始记录</p><button class="btn btn-primary" id="btn-new-empty">+ 新建笔记</button></div>';
-      document.querySelector('#note-title').value = '';
+      if (savedNoteId && state.notes.find(n => n.id === savedNoteId && !n.deleted_at)) {
+        UI.selectNote(savedNoteId);
+      }
       UI.showToast(`同步完成 — ${mergedNotes.length} 条笔记`, 'success');
     } catch (e) {
       const msg = e.message;
