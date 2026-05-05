@@ -246,6 +246,25 @@ a { color: var(--accent); }
 @media (min-width: 768px) {
   #sidebar { transform: translateX(0) !important; }
 }
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text2: #656d76;
+  --accent: #0969da;
+  --accent-dim: #ddf4ff;
+  --danger: #d1242f;
+  --green: #1a7f37;
+}
+[data-theme="light"] .note-list-item:hover,
+[data-theme="light"] .note-list-item.active { background: #eaeef2; }
+[data-theme="light"] .rendered blockquote { background: #f6f8fa; }
+[data-theme="light"] .rendered code { background: #eaeef2; }
+[data-theme="light"] .rendered th { background: #f6f8fa; }
+[data-theme="light"] .btn:hover { background: #eaeef2; }
+[data-theme="light"] .btn-icon:hover { background: #eaeef2; }
 </style>
 </head>
 <body>
@@ -257,6 +276,7 @@ a { color: var(--accent); }
       <span>🧠 Knowledge Vault</span>
       <button class="btn-icon" id="btn-export" title="导出 JSON">⬇</button>
               <button class="btn-icon" id="btn-sync" title="同步">🔄</button>
+              <button class="btn-icon" id="btn-theme" title="切换主题">🌙</button>
     </h1>
     <button class="btn btn-primary" id="btn-new" style="width:100%">+ 新建笔记</button>
     <input type="text" id="search-input" placeholder="搜索笔记..." autocomplete="off">
@@ -613,6 +633,7 @@ const UI = (() => {
       renderNoteList();
     };
     $('#btn-export').onclick = () => ExportImport.exportVault();
+    $('#btn-theme').onclick = () => toggleTheme();
     $('#btn-import').onclick = () => $('#import-file').click();
     $('#import-file').onchange = (e) => ExportImport.importVault(e.target.files[0]);
 
@@ -716,7 +737,8 @@ const UI = (() => {
     if (state.searchQuery) {
       filtered = filtered.filter(n =>
         n.title.toLowerCase().includes(state.searchQuery) ||
-        (n.tags || []).some(t => t.toLowerCase().includes(state.searchQuery))
+        (n.tags || []).some(t => t.toLowerCase().includes(state.searchQuery)) ||
+        (n.content || '').toLowerCase().includes(state.searchQuery)
       );
     }
     const container = $('#note-list');
@@ -997,7 +1019,27 @@ const UI = (() => {
     });
   }
 
-  return { init, state: () => state, setState, renderNoteList, showToast, selectNote, createNote };
+  // ---- Theme ----
+  async function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const btn = $('#btn-theme');
+    if (btn) btn.textContent = theme === 'light' ? '☀️' : '🌙';
+    try { await DB.settings.set('theme', theme); } catch (e) { /* DB not ready */ }
+  }
+
+  async function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    applyTheme(current === 'light' ? 'dark' : 'light');
+  }
+
+  async function initTheme() {
+    try {
+      const s = await DB.settings.get('theme');
+      if (s?.value) applyTheme(s.value);
+    } catch (e) { /* default dark */ }
+  }
+
+  return { init, state: () => state, setState, renderNoteList, showToast, selectNote, createNote, initTheme };
 })();
 
 // ============================================================================
@@ -1280,6 +1322,7 @@ const App = (() => {
 
     const notes = await DB.notes.getAll();
     UI.setState({ notes });
+    await UI.initTheme();
     UI.init();
     UI.renderNoteList();
 
