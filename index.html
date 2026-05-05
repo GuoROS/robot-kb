@@ -1159,10 +1159,16 @@ const Sync = (() => {
     return Object.values(map);
   }
 
-  async function sync() {
-    const token = await getToken();
-    if (!token) { showTokenModal(); return; }
+  // Show modal for token input/reconfiguration
+  async function showSyncModal() {
+    const existing = await getToken();
+    const input = document.querySelector('#token-input');
+    input.value = existing || '';
+    document.querySelector('#token-modal-overlay').classList.remove('hidden');
+    input.focus();
+  }
 
+  async function doSync(token) {
     UI.showToast('正在同步...', 'info');
 
     try {
@@ -1212,11 +1218,9 @@ const Sync = (() => {
         await DB.notes.put(note);
       }
       for (const att of mergedAtts) {
-        // Preserve Blob data in local DB
         if (att.data instanceof Blob || att.data instanceof File) {
           await DB.attachments.put(att);
         } else {
-          // Data is base64 from remote, convert to blob
           let blob = null;
           if (att.data && typeof att.data === 'string' && att.data.startsWith('data:')) {
             const resp = await fetch(att.data);
@@ -1238,14 +1242,25 @@ const Sync = (() => {
       document.querySelector('#note-title').value = '';
       UI.showToast(`同步完成 — ${mergedNotes.length} 条笔记`, 'success');
     } catch (e) {
-      UI.showToast('同步失败: ' + e.message, 'error');
+      const msg = e.message;
+      if (msg.includes('401')) {
+        UI.showToast('Token 无效，请重新填写', 'error');
+        saveToken('');
+        showSyncModal();
+      } else if (msg.includes('404')) {
+        UI.showToast('同步文件不存在，将自动创建', 'info');
+      } else if (msg.includes('NetworkError') || msg.includes('Failed to fetch')) {
+        UI.showToast('网络连接失败，请检查是否需科学上网', 'error');
+      } else {
+        UI.showToast('同步失败: ' + msg, 'error');
+      }
       console.error('Sync error:', e);
     }
   }
 
   // Token modal events
   function init() {
-    document.querySelector('#btn-sync').onclick = () => sync();
+    document.querySelector('#btn-sync').onclick = () => showSyncModal();
     document.querySelector('#btn-token-cancel').onclick = () => {
       document.querySelector('#token-modal-overlay').classList.add('hidden');
     };
@@ -1254,9 +1269,8 @@ const Sync = (() => {
       if (!token) return;
       await saveToken(token);
       document.querySelector('#token-modal-overlay').classList.add('hidden');
-      sync();
+      doSync(token);
     };
-    // Allow Enter to save in token modal
     document.querySelector('#token-input').onkeydown = (e) => {
       if (e.key === 'Enter') document.querySelector('#btn-token-save').click();
     };
@@ -1264,7 +1278,7 @@ const Sync = (() => {
 
   init();
 
-  return { sync, showTokenModal };
+  return { sync: () => showSyncModal(), showTokenModal: showSyncModal };
 })();
 
 // ============================================================================
