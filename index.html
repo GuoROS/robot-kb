@@ -302,7 +302,8 @@ a { color: var(--accent); }
     <h1 style="display:flex;align-items:center;gap:8px;justify-content:space-between">
       <span>🧠 Knowledge Vault</span>
       <button class="btn-icon" id="btn-export" title="导出 JSON">⬇</button>
-              <button class="btn-icon" id="btn-sync" title="同步">🔄</button>
+      <button class="btn-icon" id="btn-file-sync" title="云盘同步">📂</button>
+              <button class="btn-icon" id="btn-sync" title="GitHub 同步">🔄</button>
               <button class="btn-icon" id="btn-theme" title="切换主题">🌙</button>
     </h1>
     <button class="btn btn-primary" id="btn-new" style="width:100%">+ 新建笔记</button>
@@ -687,6 +688,7 @@ const UI = (() => {
       renderNoteList();
     };
     $('#btn-export').onclick = () => ExportImport.exportVault();
+    $('#btn-file-sync').onclick = () => FileSync.pickFile();
     $('#btn-theme').onclick = () => toggleTheme();
     $('#btn-select').onclick = () => toggleSelectMode();
     $('#btn-batch-delete').onclick = () => batchDelete();
@@ -1019,6 +1021,7 @@ const UI = (() => {
     await DB.notes.put(note);
     state.isDirty = false;
     Sync.scheduleAutoPush();
+    FileSync.write(state.notes.filter(n => !n.deleted_at));
     $('#save-indicator').textContent = '已保存';
     if (state.viewMode === 'edit') {
       $('#save-indicator').textContent = '已保存 ' + new Date().toLocaleTimeString();
@@ -1359,8 +1362,8 @@ const Sync = (() => {
     if (!resp.ok) throw new Error(`GitHub API: ${resp.status} ${resp.statusText}`);
   }
 
-  // Merge by updated_at: later wins
-  function merge(localItems, remoteItems) {
+  // Merge by updated_at: later wins. Exported so FileSync can use it.
+  function mergeNotes(localItems, remoteItems) {
     const map = {};
     for (const item of localItems) map[item.id] = item;
     for (const r of remoteItems) {
@@ -1402,7 +1405,7 @@ const Sync = (() => {
 
       // 3. Merge notes
       const mergedNotes = remote
-        ? merge(localNotes, remote.notes || [])
+        ? mergeNotes(localNotes, remote.notes || [])
         : localNotes;
 
       const payload = {
@@ -1474,7 +1477,7 @@ const Sync = (() => {
       const remote = await fetchRemote(token);
       if (!remote) return;
       const localNotes = await DB.notes.getAll();
-      const merged = merge(localNotes, remote.notes || []);
+      const merged = mergeNotes(localNotes, remote.notes || []);
       for (const note of merged) await DB.notes.put(note);
       const s = UI.state();
       s.notes = await DB.notes.getAll();
@@ -1492,17 +1495,100 @@ const Sync = (() => {
       try {
         const remote = await fetchRemote(token);
         const localNotes = await DB.notes.getAll();
-        const merged = merge(localNotes, remote?.notes || []);
+        const merged = mergeNotes(localNotes, remote?.notes || []);
         const payload = { version: 1, synced_at: now(), notes: merged };
         if (remote?._sha) payload._sha = remote._sha;
         await pushRemote(token, payload);
       } catch (e) { console.error('Sync autoPush failed:', e); }
-    }, 5000);
+    }, 2000);
   }
 
   init();
 
-  return { sync: () => showSyncModal(), showTokenModal: showSyncModal, autoPull, scheduleAutoPush };
+  return { sync: () => showSyncModal(), showTokenModal: showSyncModal, autoPull, scheduleAutoPush, mergeNotes };
+})();
+
+// ============================================================================
+// MODULE: FileSync (Cloud Drive via File System Access API)
+// ============================================================================
+const FileSync = (() => {
+  const HANDLE_KEY = 'file_sync_handle';
+
+  function ok() {
+    return typeof window.showOpenFilePicker === 'function';
+  }
+
+  async function hasHandle() {
+    if (!ok()) return false;
+    try { const s = await DB.settings.get(HANDLE_KEY); return !!s?.value; } catch { return false; }
+  }
+
+  async function pickFile() {
+    if (!ok()) { UI.showToast('当前浏览器不支持文件同步，请使用 Chrome 或 Edge', 'error'); return null; }
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+        mode: 'readwrite',
+        startIn: 'documents'
+      });
+      await DB.settings.set(HANDLE_KEY, h);
+      UI.showToast('已绑定云盘文件，自动同步已开启', 'success');
+      return h;
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error('FileSync pickFile:', e);
+      return null;
+    }
+  }
+
+  async function getHandle() {
+    try { const s = await DB.settings.get(HANDLE_KEY); return s?.value || null; } catch { return null; }
+  }
+
+  async function read() {
+    if (!ok()) return null;
+    const h = await getHandle();
+    if (!h) return null;
+    try {
+      const file = await h.getFile();
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      if (!payload.version || !payload.notes) return null;
+      return payload;
+    } catch (e) { console.error('FileSync read:', e); return null; }
+  }
+
+  async function write(notes) {
+    if (!ok()) return;
+    const h = await getHandle();
+    if (!h) return;
+    try {
+      const writable = await h.createWritable();
+      const payload = { version: 1, synced_at: now(), notes };
+      await writable.write(JSON.stringify(payload, null, 2));
+      await writable.close();
+    } catch (e) { console.error('FileSync write:', e); }
+  }
+
+  async function autoSync() {
+    if (!ok()) return;
+    const remote = await read();
+    if (!remote || !remote.notes) return;
+    const localNotes = await DB.notes.getAll();
+    const merged = Sync.mergeNotes(localNotes, remote.notes);
+    const s = UI.state();
+    if (s.isDirty) {
+      for (const note of merged) {
+        if (note.id !== s.activeNoteId) await DB.notes.put(note);
+      }
+    } else {
+      for (const note of merged) await DB.notes.put(note);
+    }
+    const fresh = await DB.notes.getAll();
+    UI.setState({ notes: fresh });
+    UI.renderNoteList();
+  }
+
+  return { ok, hasHandle, pickFile, read, write, autoSync };
 })();
 
 // ============================================================================
@@ -1523,6 +1609,22 @@ const App = (() => {
     UI.init();
     UI.renderNoteList();
     Sync.autoPull();
+    FileSync.autoSync();
+
+    // Pull from cloud/file when user switches back to this tab
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        FileSync.autoSync();
+        Sync.autoPull();
+      }
+    });
+
+    // Push on tab close (best-effort for GitHub sync)
+    window.addEventListener('beforeunload', () => {
+      const s = UI.state();
+      const allNotes = [...s.notes];
+      if (allNotes.length > 0) FileSync.write(allNotes.filter(n => !n.deleted_at));
+    });
 
     // Hide editor area initially
     document.querySelector('#editor-area').classList.remove('active');
